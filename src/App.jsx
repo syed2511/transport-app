@@ -1,9 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, setLogLevel } from 'firebase/firestore';
+import { 
+    getAuth, 
+    onAuthStateChanged, 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signOut 
+} from 'firebase/auth';
+import { 
+    getFirestore, 
+    collection, 
+    addDoc, 
+    onSnapshot, 
+    doc, 
+    updateDoc, 
+    deleteDoc, 
+    query, 
+    setLogLevel 
+} from 'firebase/firestore';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Truck, Package, Users, DollarSign, PlusCircle, Edit, Trash2, X } from 'lucide-react';
+import { Truck, Package, Users, DollarSign, PlusCircle, Edit, Trash2, X, LogOut, Loader2 } from 'lucide-react';
 
 // --- shadcn/ui-like Components (self-contained) ---
 // As we can't import, we'll create simplified versions of these components here.
@@ -30,7 +46,7 @@ const CardContent = ({ children, className = '' }) => (
     <div className={`p-6 pt-0 ${className}`}>{children}</div>
 );
 
-const Button = ({ children, onClick, className = '', variant = 'default', size = 'default' }) => {
+const Button = ({ children, onClick, className = '', variant = 'default', size = 'default', disabled = false }) => {
     const baseClasses = 'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
     const variants = {
         default: 'bg-gray-900 text-gray-50 hover:bg-gray-900/90 dark:bg-gray-50 dark:text-gray-900 dark:hover:bg-gray-50/90',
@@ -44,7 +60,7 @@ const Button = ({ children, onClick, className = '', variant = 'default', size =
         icon: 'h-10 w-10',
     };
     return (
-        <button onClick={onClick} className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`}>
+        <button onClick={onClick} className={`${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`} disabled={disabled}>
             {children}
         </button>
     );
@@ -92,9 +108,7 @@ const TableRow = ({ children, className = '' }) => <tr className={`border-b tran
 const TableHead = ({ children, className = '' }) => <th className={`h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400 [&:has([role=checkbox])]:pr-0 ${className}`}>{children}</th>;
 const TableCell = ({ children, className = '' }) => <td className={`p-4 align-middle [&:has([role=checkbox])]:pr-0 ${className}`}>{children}</td>;
 
-
-// --- Main App ---
-
+// --- Firebase Config ---
 // PASTE YOUR FIREBASE CONFIG OBJECT HERE
 const firebaseConfig = {
   apiKey: "AIzaSyCNt6pB90xSr2yzyLe_ZvXhmFGBud5-kQA",
@@ -106,47 +120,104 @@ const firebaseConfig = {
   measurementId: "G-WJSGRK735L"
 };
 
-// This section should only appear ONCE in the file.
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-transport-app';
+// --- Firebase Initialization ---
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// setLogLevel('debug'); // Uncomment for detailed Firestore logs
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-transport-app';
+// setLogLevel('debug');
 
+// --- NEW AUTHENTICATION PAGE ---
+const AuthPage = () => {
+    const [isLogin, setIsLogin] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+            if (isLogin) {
+                await signInWithEmailAndPassword(auth, email, password);
+            } else {
+                await createUserWithEmailAndPassword(auth, email, password);
+            }
+        } catch (err) {
+            setError(err.message);
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
+            <div className="w-full max-w-md">
+                <Card>
+                    <CardHeader className="text-center">
+                        <div className="w-full">
+                           <h2 className="text-2xl font-bold tracking-tight">{isLogin ? 'Welcome Back!' : 'Create an Account'}</h2>
+                           <p className="text-gray-500 dark:text-gray-400">{isLogin ? 'Sign in to access your dashboard.' : 'Enter your details to get started.'}</p>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email Address</Label>
+                                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
+                                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
+                            </div>
+                            {error && <p className="text-sm text-red-500">{error}</p>}
+                            <Button type="submit" className="w-full" disabled={loading}>
+                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isLogin ? 'Sign In' : 'Sign Up')}
+                            </Button>
+                        </form>
+                        <div className="mt-4 text-center text-sm">
+                            {isLogin ? "Don't have an account?" : "Already have an account?"}
+                            <button onClick={() => setIsLogin(!isLogin)} className="ml-1 underline">
+                                {isLogin ? 'Sign Up' : 'Sign In'}
+                            </button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
+// --- EXISTING APP COMPONENTS (No major changes needed in these) ---
 
 const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
     const [formData, setFormData] = useState({});
 
     useEffect(() => {
-        // Helper to format Firestore Timestamps or Date objects to a string for datetime-local input
         const formatDateTime = (ts) => {
             if (!ts) return '';
-            // It might be a Firestore Timestamp (on edit) or a Date object
             const d = ts.toDate ? ts.toDate() : ts;
-            // Adjust for timezone offset to display correctly in the input
             d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             return d.toISOString().slice(0, 16);
         };
             
         if (consignment) {
-            // Editing an existing consignment
             setFormData({
                 ...consignment,
                 consignmentDateTime: formatDateTime(consignment.consignmentDateTime),
-                warehouseReceivedDateTime: formatDateTime(consignment.warehouseReceivedDateTime), // Format new field
+                warehouseReceivedDateTime: formatDateTime(consignment.warehouseReceivedDateTime),
                 receivingDateTime: formatDateTime(consignment.receivingDateTime),
                 deliveringDateTime: formatDateTime(consignment.deliveringDateTime),
             });
         } else {
-            // Adding a new consignment
             const now = new Date();
             setFormData({
                 consignmentNo: '',
                 consignorName: '',
                 consigneeName: '',
-                consignmentDateTime: formatDateTime(now), // Default to now
-                warehouseReceivedDateTime: formatDateTime(now), // Default to now
+                consignmentDateTime: formatDateTime(now),
+                warehouseReceivedDateTime: formatDateTime(now),
                 status: 'Received',
                 receivingDateTime: '',
                 deliveringDateTime: '',
@@ -165,11 +236,10 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
     };
 
     const handleSubmit = () => {
-        // Convert local datetime strings back to Firestore Timestamp objects
         const dataToSave = {
             ...formData,
             consignmentDateTime: formData.consignmentDateTime ? new Date(formData.consignmentDateTime) : null,
-            warehouseReceivedDateTime: formData.warehouseReceivedDateTime ? new Date(formData.warehouseReceivedDateTime) : null, // Convert new field
+            warehouseReceivedDateTime: formData.warehouseReceivedDateTime ? new Date(formData.warehouseReceivedDateTime) : null,
             receivingDateTime: formData.receivingDateTime ? new Date(formData.receivingDateTime) : null,
             deliveringDateTime: formData.deliveringDateTime ? new Date(formData.deliveringDateTime) : null,
         };
@@ -189,7 +259,7 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
             </DialogHeader>
             <DialogContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto pr-2">
-                    <div className="space-y-2">
+                     <div className="space-y-2">
                         <Label htmlFor="consignmentNo">Consignment No.</Label>
                         <Input id="consignmentNo" name="consignmentNo" value={formData.consignmentNo || ''} onChange={handleChange} />
                     </div>
@@ -205,7 +275,6 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
                         <Label htmlFor="consignmentDateTime">Consignment Date & Time</Label>
                         <Input id="consignmentDateTime" name="consignmentDateTime" type="datetime-local" value={formData.consignmentDateTime || ''} onChange={handleChange} />
                     </div>
-                    {/* NEW FIELD ADDED HERE */}
                     <div className="space-y-2">
                         <Label htmlFor="warehouseReceivedDateTime">Warehouse Received Time</Label>
                         <Input id="warehouseReceivedDateTime" name="warehouseReceivedDateTime" type="datetime-local" value={formData.warehouseReceivedDateTime || ''} onChange={handleChange} />
@@ -259,7 +328,7 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
     );
 };
 
-const Dashboard = ({ consignments, onSave, onDelete, onEdit }) => {
+const Dashboard = ({ consignments, onSave, onDelete }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingConsignment, setEditingConsignment] = useState(null);
 
@@ -350,7 +419,6 @@ const Dashboard = ({ consignments, onSave, onDelete, onEdit }) => {
                                 <TableHead>Consignor</TableHead>
                                 <TableHead>Consignee</TableHead>
                                 <TableHead>Date</TableHead>
-                                {/* NEW COLUMN HEADER ADDED */}
                                 <TableHead>Warehouse Rcvd</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Payment</TableHead>
@@ -366,7 +434,6 @@ const Dashboard = ({ consignments, onSave, onDelete, onEdit }) => {
                                         <TableCell>{c.consignorName}</TableCell>
                                         <TableCell>{c.consigneeName}</TableCell>
                                         <TableCell>{formatDate(c.consignmentDateTime)}</TableCell>
-                                        {/* NEW TABLE CELL FOR DATA */}
                                         <TableCell>{formatDate(c.warehouseReceivedDateTime)}</TableCell>
                                         <TableCell>
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -590,51 +657,35 @@ const Accounts = ({ consignments }) => {
     );
 };
 
-
+// --- MAIN APP COMPONENT ---
+// This now acts as a gatekeeper, showing the Auth page or the Dashboard.
 export default function App() {
-    const [userId, setUserId] = useState(null);
-    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [user, setUser] = useState(null);
+    const [loadingUser, setLoadingUser] = useState(true);
     const [consignments, setConsignments] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loadingData, setLoadingData] = useState(false);
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('dashboard');
 
     useEffect(() => {
-        const performAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-              await signInAnonymously(auth);
-            }
-          } catch (err) {
-            console.error("Authentication Error:", err);
-            setError("Failed to authenticate. Please refresh the page.");
-          }
-        };
-
-        performAuth();
-
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setUserId(user.uid);
-            } else {
-                setUserId(null);
-            }
-            setIsAuthReady(true);
+        // This listener waits for the user's login state to change.
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setLoadingUser(false);
         });
-
-        return () => unsubscribe();
+        return () => unsubscribe(); // Cleanup on component unmount
     }, []);
 
     useEffect(() => {
-        if (!isAuthReady || !userId) {
-            setLoading(isAuthReady ? false : true); // If auth is ready but no user, stop loading.
+        if (!user) {
+            // If there's no user, clear the consignments list.
+            setConsignments([]);
             return;
-        };
+        }
 
-        setLoading(true);
-        const consignmentsCollectionPath = `/artifacts/${appId}/users/${userId}/consignments`;
+        // When a user logs in, fetch their specific data.
+        setLoadingData(true);
+        const consignmentsCollectionPath = `/artifacts/${appId}/users/${user.uid}/consignments`;
         const q = query(collection(db, consignmentsCollectionPath));
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -642,30 +693,21 @@ export default function App() {
                 id: doc.id,
                 ...doc.data(),
             }));
-            // In-memory sort since firestore requires composite indexes for multiple orderBys
-            consignmentsData.sort((a, b) => {
-                const dateA = a.consignmentDateTime?.toDate() || 0;
-                const dateB = b.consignmentDateTime?.toDate() || 0;
-                return dateB - dateA;
-            });
-
+            consignmentsData.sort((a, b) => (b.consignmentDateTime?.toDate() || 0) - (a.consignmentDateTime?.toDate() || 0));
             setConsignments(consignmentsData);
-            setLoading(false);
+            setLoadingData(false);
         }, (err) => {
             console.error("Firestore Snapshot Error:", err);
             setError("Failed to load consignment data.");
-            setLoading(false);
+            setLoadingData(false);
         });
 
-        return () => unsubscribe();
-    }, [isAuthReady, userId]);
+        return () => unsubscribe(); // Cleanup when user logs out.
+    }, [user]);
 
     const handleSaveConsignment = async (data) => {
-        if (!userId) {
-            alert("You must be logged in to save data.");
-            return;
-        }
-        const consignmentsCollectionPath = `/artifacts/${appId}/users/${userId}/consignments`;
+        if (!user) return;
+        const consignmentsCollectionPath = `/artifacts/${appId}/users/${user.uid}/consignments`;
         try {
             if (data.id) {
                 const docRef = doc(db, consignmentsCollectionPath, data.id);
@@ -676,30 +718,34 @@ export default function App() {
             }
         } catch (err) {
             console.error("Error saving consignment:", err);
-            setError("Could not save the consignment. Please try again.");
+            setError("Could not save the consignment.");
         }
     };
     
     const handleDeleteConsignment = async (id) => {
-        if (!userId) {
-             alert("You must be logged in to delete data.");
-            return;
-        }
-        // A simple confirmation before deleting
-        if (window.confirm("Are you sure you want to delete this consignment? This action cannot be undone.")) {
-            const docRef = doc(db, `/artifacts/${appId}/users/${userId}/consignments`, id);
+        if (!user) return;
+        if (window.confirm("Are you sure you want to delete this consignment?")) {
+            const docRef = doc(db, `/artifacts/${appId}/users/${user.uid}/consignments`, id);
             try {
                 await deleteDoc(docRef);
             } catch (err) {
                  console.error("Error deleting consignment:", err);
-                 setError("Could not delete the consignment. Please try again.");
+                 setError("Could not delete the consignment.");
             }
+        }
+    };
+    
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error("Error signing out:", error);
         }
     };
 
     const renderContent = () => {
-        if (loading) {
-            return <div className="flex items-center justify-center h-64"><p>Loading your data...</p></div>;
+        if (loadingData) {
+            return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
         }
          if (error) {
             return <div className="flex items-center justify-center h-64 text-red-500"><p>{error}</p></div>;
@@ -727,7 +773,22 @@ export default function App() {
             <span className="ml-3">{label}</span>
         </Button>
     );
+    
+    // While checking the user's login status, show a loading screen.
+    if (loadingUser) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
+                <Loader2 className="h-12 w-12 animate-spin" />
+            </div>
+        );
+    }
+    
+    // If no user is logged in, show the Authentication page.
+    if (!user) {
+        return <AuthPage />;
+    }
 
+    // If a user is logged in, show the main application.
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans">
              <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
@@ -747,21 +808,25 @@ export default function App() {
                             </nav>
                         </div>
                         <div className="mt-auto p-4 border-t">
-                            <p className="text-xs text-gray-500 dark:text-gray-400">User ID:</p>
-                            <p className="text-xs break-all">{userId || 'Initializing...'}</p>
+                             <Button variant="outline" className="w-full" onClick={handleLogout}>
+                                <LogOut className="mr-2 h-4 w-4" /> Logout
+                            </Button>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">Logged in as:</p>
+                            <p className="text-xs break-all">{user.email}</p>
                         </div>
                     </div>
                 </div>
                  <div className="flex flex-col">
                     <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-white dark:bg-gray-900 px-6 sticky top-0 z-30">
-                         {/* Mobile Nav Trigger could go here */}
                          <a href="#" className="lg:hidden flex items-center gap-2 font-semibold">
                             <Truck className="h-6 w-6" />
                             <span className="">Transport Hub</span>
                         </a>
-                        <div className="w-full flex-1">
-                             {/* Mobile Nav would be here */}
-                        </div>
+                         <div className="w-full flex-1 flex justify-end lg:hidden">
+                            <Button variant="outline" size="sm" onClick={handleLogout}>
+                                <LogOut className="h-4 w-4" />
+                            </Button>
+                         </div>
                     </header>
                     <main className="flex-1 p-4 sm:p-6 bg-gray-100/40 dark:bg-black/40">
                        {renderContent()}
