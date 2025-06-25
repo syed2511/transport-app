@@ -22,8 +22,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Truck, Package, Users, DollarSign, PlusCircle, Edit, Trash2, X, LogOut, Loader2 } from 'lucide-react';
 
 // --- shadcn/ui-like Components (self-contained) ---
-// As we can't import, we'll create simplified versions of these components here.
-
 const Card = ({ children, className = '' }) => (
     <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm ${className}`}>
         {children}
@@ -189,7 +187,7 @@ const AuthPage = () => {
     );
 };
 
-// --- EXISTING APP COMPONENTS (No major changes needed in these) ---
+// --- EXISTING APP COMPONENTS ---
 
 const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
     const [formData, setFormData] = useState({});
@@ -216,6 +214,7 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
                 consignmentNo: '',
                 consignorName: '',
                 consigneeName: '',
+                noOfArticles: 1, // New field default
                 consignmentDateTime: formatDateTime(now),
                 warehouseReceivedDateTime: formatDateTime(now),
                 status: 'Received',
@@ -270,6 +269,11 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
                      <div className="space-y-2">
                         <Label htmlFor="consigneeName">Consignee Name</Label>
                         <Input id="consigneeName" name="consigneeName" value={formData.consigneeName || ''} onChange={handleChange} />
+                    </div>
+                    {/* NEW FIELD FOR NO OF ARTICLES */}
+                    <div className="space-y-2">
+                        <Label htmlFor="noOfArticles">No. of Articles</Label>
+                        <Input id="noOfArticles" name="noOfArticles" type="number" value={formData.noOfArticles || 0} onChange={handleChange} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="consignmentDateTime">Consignment Date & Time</Label>
@@ -331,6 +335,17 @@ const ConsignmentForm = ({ isOpen, onClose, consignment, onSave }) => {
 const Dashboard = ({ consignments, onSave, onDelete }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingConsignment, setEditingConsignment] = useState(null);
+    const [selectedMonth, setSelectedMonth] = useState(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
+
+    // UPDATED: Filtering is now based on warehouseReceivedDateTime
+    const filteredConsignments = useMemo(() => {
+        return consignments.filter(c => {
+            if (!c.warehouseReceivedDateTime) return false;
+            const receivedDate = c.warehouseReceivedDateTime.toDate();
+            const monthStr = `${receivedDate.getFullYear()}-${String(receivedDate.getMonth() + 1).padStart(2, '0')}`;
+            return monthStr === selectedMonth;
+        });
+    }, [consignments, selectedMonth]);
 
     const handleAddNew = () => {
         setEditingConsignment(null);
@@ -351,52 +366,56 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
         return timestamp.toDate().toLocaleString();
     };
 
-    const totalConsignments = consignments.length;
-    const deliveredCount = consignments.filter(c => c.status === 'Delivered').length;
-    const dueCount = consignments.filter(c => c.paymentStatus === 'Due').length;
-    const totalFreight = consignments.reduce((sum, c) => sum + (c.freight || 0), 0);
+    const totalConsignments = filteredConsignments.length;
+    const deliveredCount = filteredConsignments.filter(c => c.status === 'Delivered').length;
+    const dueCount = filteredConsignments.filter(c => c.paymentStatus === 'Due').length;
+    const totalFreight = filteredConsignments.reduce((sum, c) => sum + (c.freight || 0), 0);
 
     return (
         <div className="space-y-6">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Monthly Dashboard</h2>
+                <Input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-48"/>
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                  <Card>
                     <CardHeader>
-                        <CardTitle>Total Consignments</CardTitle>
+                        <CardTitle>Consignments This Month</CardTitle>
                         <Package className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{totalConsignments}</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Total consignments recorded</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Received in {selectedMonth}</p>
                     </CardContent>
                 </Card>
                  <Card>
                     <CardHeader>
-                        <CardTitle>Delivered</CardTitle>
+                        <CardTitle>Delivered This Month</CardTitle>
                         <Truck className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{deliveredCount}</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">{((deliveredCount/totalConsignments || 0)*100).toFixed(1)}% of total</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{((deliveredCount/totalConsignments || 0)*100).toFixed(1)}% of monthly total</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle>Payments Due</CardTitle>
+                        <CardTitle>Payments Due This Month</CardTitle>
                         <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{dueCount}</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Consignments with outstanding payment</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">From consignments received in {selectedMonth}</p>
                     </CardContent>
                 </Card>
                  <Card>
                     <CardHeader>
-                        <CardTitle>Total Freight Value</CardTitle>
+                        <CardTitle>Freight Value This Month</CardTitle>
                         <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">₹{totalFreight.toLocaleString('en-IN')}</div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Across all consignments</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">For consignments in {selectedMonth}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -404,7 +423,7 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
             <Card>
                 <CardHeader>
                      <div>
-                        <CardTitle>Recent Consignments</CardTitle>
+                        <CardTitle>Consignments for {selectedMonth}</CardTitle>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Manage all your transport records.</p>
                     </div>
                     <Button onClick={handleAddNew} size="sm">
@@ -418,8 +437,10 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
                                 <TableHead>Consignment #</TableHead>
                                 <TableHead>Consignor</TableHead>
                                 <TableHead>Consignee</TableHead>
-                                <TableHead>Date</TableHead>
+                                <TableHead>Articles</TableHead>
+                                <TableHead>Consign Date</TableHead>
                                 <TableHead>Warehouse Rcvd</TableHead>
+                                <TableHead>Delivery Date</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Payment</TableHead>
                                 <TableHead className="text-right">Total (₹)</TableHead>
@@ -427,14 +448,16 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {consignments.length > 0 ? (
-                                consignments.map(c => (
+                            {filteredConsignments.length > 0 ? (
+                                filteredConsignments.map(c => (
                                     <TableRow key={c.id}>
                                         <TableCell className="font-medium">{c.consignmentNo}</TableCell>
                                         <TableCell>{c.consignorName}</TableCell>
                                         <TableCell>{c.consigneeName}</TableCell>
+                                        <TableCell>{c.noOfArticles}</TableCell>
                                         <TableCell>{formatDate(c.consignmentDateTime)}</TableCell>
                                         <TableCell>{formatDate(c.warehouseReceivedDateTime)}</TableCell>
+                                        <TableCell>{formatDate(c.deliveringDateTime)}</TableCell>
                                         <TableCell>
                                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                                                 c.status === 'Delivered' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' :
@@ -464,7 +487,7 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan="9" className="text-center h-24">No consignments found. Add one to get started.</TableCell>
+                                    <TableCell colSpan="11" className="text-center h-24">No consignments found for the selected month.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -485,7 +508,7 @@ const Dashboard = ({ consignments, onSave, onDelete }) => {
 const DueTracker = ({ consignments }) => {
     const dueData = useMemo(() => {
         const dues = consignments
-            .filter(c => c.paymentStatus === 'Due')
+            .filter(c => c.paymentStatus === 'Due' && c.consigneeName)
             .reduce((acc, c) => {
                 const total = (c.freight || 0) + (c.charges || 0) + (c.stdCharges || 0);
                 if (!acc[c.consigneeName]) {
@@ -570,24 +593,35 @@ const Accounts = ({ consignments }) => {
             return acc;
         }, { freight: 0, charges: 0, stdCharges: 0, total: 0 });
 
-        const chartData = filteredByMonth.reduce((acc, c) => {
+        const dailyCollections = filteredByMonth.reduce((acc, c) => {
              const day = c.deliveringDateTime.toDate().getDate();
              if(!acc[day]) {
-                 acc[day] = { name: `Day ${day}`, freight: 0, charges: 0, stdCharges: 0 };
+                 acc[day] = { date: c.deliveringDateTime.toDate(), day, freight: 0, charges: 0, stdCharges: 0, total: 0 };
              }
              acc[day].freight += c.freight || 0;
              acc[day].charges += c.charges || 0;
              acc[day].stdCharges += c.stdCharges || 0;
+             acc[day].total += (c.freight || 0) + (c.charges || 0) + (c.stdCharges || 0);
              return acc;
         }, {});
 
+        const dailyData = Object.values(dailyCollections).sort((a,b) => a.day - b.day);
 
-        return { totals, chartData: Object.values(chartData).sort((a,b) => a.name.localeCompare(b.name, undefined, {numeric: true})) };
+        const chartData = dailyData.map(d => ({
+            name: `Day ${d.day}`,
+            freight: d.freight,
+            charges: d.charges,
+            stdCharges: d.stdCharges
+        }));
+
+        return { totals, dailyData, chartData };
     }, [consignments, selectedMonth]);
 
     const handleMonthChange = (e) => {
         setSelectedMonth(e.target.value);
     };
+
+    const formatCurrency = (value) => `₹${value.toLocaleString('en-IN')}`;
 
     return (
         <div className="space-y-6">
@@ -607,7 +641,7 @@ const Accounts = ({ consignments }) => {
                                 <DollarSign className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </CardHeader>
                             <CardContent>
-                               <div className="text-2xl font-bold text-green-600">₹{monthlyData.totals.total.toLocaleString('en-IN')}</div>
+                               <div className="text-2xl font-bold text-green-600">{formatCurrency(monthlyData.totals.total)}</div>
                             </CardContent>
                         </Card>
                         <Card>
@@ -615,7 +649,7 @@ const Accounts = ({ consignments }) => {
                                 <CardTitle>Total Freight</CardTitle>
                             </CardHeader>
                             <CardContent>
-                               <div className="text-2xl font-bold">₹{monthlyData.totals.freight.toLocaleString('en-IN')}</div>
+                               <div className="text-2xl font-bold">{formatCurrency(monthlyData.totals.freight)}</div>
                             </CardContent>
                         </Card>
                          <Card>
@@ -623,7 +657,7 @@ const Accounts = ({ consignments }) => {
                                 <CardTitle>Other Charges</CardTitle>
                             </CardHeader>
                             <CardContent>
-                               <div className="text-2xl font-bold">₹{monthlyData.totals.charges.toLocaleString('en-IN')}</div>
+                               <div className="text-2xl font-bold">{formatCurrency(monthlyData.totals.charges)}</div>
                             </CardContent>
                         </Card>
                          <Card>
@@ -631,34 +665,80 @@ const Accounts = ({ consignments }) => {
                                 <CardTitle>STD Charges</CardTitle>
                             </CardHeader>
                             <CardContent>
-                               <div className="text-2xl font-bold">₹{monthlyData.totals.stdCharges.toLocaleString('en-IN')}</div>
+                               <div className="text-2xl font-bold">{formatCurrency(monthlyData.totals.stdCharges)}</div>
                             </CardContent>
                         </Card>
                     </div>
-                    
-                    <h3 className="text-lg font-medium mb-4">Daily Collections for {selectedMonth}</h3>
-                    <div className="h-80">
-                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyData.chartData}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="name" />
-                                <YAxis tickFormatter={(value) => `₹${value/1000}k`} />
-                                <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN')}`} />
-                                <Legend />
-                                <Bar dataKey="freight" stackId="a" fill="#8884d8" name="Freight" />
-                                <Bar dataKey="charges" stackId="a" fill="#82ca9d" name="Other Charges" />
-                                <Bar dataKey="stdCharges" stackId="a" fill="#ffc658" name="STD Charges" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
                 </CardContent>
             </Card>
+            
+            <div className="grid gap-6 lg:grid-cols-5">
+                <div className="lg:col-span-3">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Daily Collections for {selectedMonth}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead className="text-right">Freight</TableHead>
+                                        <TableHead className="text-right">Charges</TableHead>
+                                        <TableHead className="text-right">STD Charges</TableHead>
+                                        <TableHead className="text-right">Daily Total</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {monthlyData.dailyData.length > 0 ? (
+                                        monthlyData.dailyData.map(d => (
+                                            <TableRow key={d.day}>
+                                                <TableCell>{d.date.toLocaleDateString()}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(d.freight)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(d.charges)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(d.stdCharges)}</TableCell>
+                                                <TableCell className="text-right font-semibold">{formatCurrency(d.total)}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan="5" className="text-center h-24">No collections for this month.</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+                <div className="lg:col-span-2">
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Daily Collections Chart</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-80">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={monthlyData.chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" />
+                                        <YAxis tickFormatter={(value) => `₹${value/1000}k`} />
+                                        <Tooltip formatter={(value) => `₹${value.toLocaleString('en-IN')}`} />
+                                        <Legend />
+                                        <Bar dataKey="freight" stackId="a" fill="#8884d8" name="Freight" />
+                                        <Bar dataKey="charges" stackId="a" fill="#82ca9d" name="Charges" />
+                                        <Bar dataKey="stdCharges" stackId="a" fill="#ffc658" name="STD" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
         </div>
     );
 };
 
 // --- MAIN APP COMPONENT ---
-// This now acts as a gatekeeper, showing the Auth page or the Dashboard.
 export default function App() {
     const [user, setUser] = useState(null);
     const [loadingUser, setLoadingUser] = useState(true);
@@ -668,22 +748,18 @@ export default function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
 
     useEffect(() => {
-        // This listener waits for the user's login state to change.
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setLoadingUser(false);
         });
-        return () => unsubscribe(); // Cleanup on component unmount
+        return () => unsubscribe();
     }, []);
 
     useEffect(() => {
         if (!user) {
-            // If there's no user, clear the consignments list.
             setConsignments([]);
             return;
         }
-
-        // When a user logs in, fetch their specific data.
         setLoadingData(true);
         const consignmentsCollectionPath = `/artifacts/${appId}/users/${user.uid}/consignments`;
         const q = query(collection(db, consignmentsCollectionPath));
@@ -693,7 +769,8 @@ export default function App() {
                 id: doc.id,
                 ...doc.data(),
             }));
-            consignmentsData.sort((a, b) => (b.consignmentDateTime?.toDate() || 0) - (a.consignmentDateTime?.toDate() || 0));
+            // UPDATED: Sorting is now based on warehouseReceivedDateTime
+            consignmentsData.sort((a, b) => (b.warehouseReceivedDateTime?.toDate() || 0) - (a.warehouseReceivedDateTime?.toDate() || 0));
             setConsignments(consignmentsData);
             setLoadingData(false);
         }, (err) => {
@@ -702,7 +779,7 @@ export default function App() {
             setLoadingData(false);
         });
 
-        return () => unsubscribe(); // Cleanup when user logs out.
+        return () => unsubscribe();
     }, [user]);
 
     const handleSaveConsignment = async (data) => {
@@ -774,7 +851,6 @@ export default function App() {
         </Button>
     );
     
-    // While checking the user's login status, show a loading screen.
     if (loadingUser) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
@@ -783,12 +859,10 @@ export default function App() {
         );
     }
     
-    // If no user is logged in, show the Authentication page.
     if (!user) {
         return <AuthPage />;
     }
 
-    // If a user is logged in, show the main application.
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans">
              <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
